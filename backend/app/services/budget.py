@@ -1,58 +1,50 @@
-def calculate_trip_budget(trip) -> dict:
+﻿def calculate_trip_budget(trip) -> dict:
     """
-    Calculate full budget breakdown for a trip:
-    - total_cost
-    - by_stop: [{stop_id, city, cost, activities}]
-    - by_category: {sightseeing: X, food: Y, ...}
-    - avg_per_day, num_days
+    Calculates detailed budget breakdown for a trip.
+    Returns total_cost, cost by stop, cost by category, daily avg.
+    Phase 3 - Dev-1 Backend Implementation
     """
     total_cost = 0.0
     by_stop = []
     by_category = {}
 
-    if not trip or not hasattr(trip, 'stops'):
-        return {
-            "total_cost": 0.0,
-            "by_stop": [],
-            "by_category": {},
-            "avg_per_day": 0.0,
-            "num_days": 0
-        }
+    if not trip:
+        return {"total_cost": 0.0, "by_stop": [], "by_category": {}, "avg_per_day": 0.0, "num_days": 0}
 
-    for stop in trip.stops:
+    for stop in getattr(trip, "stops", []):
         stop_cost = 0.0
         stop_activities_list = []
-        
-        # Calculate stop activities cost if stop_activities exists
-        stop_acts = getattr(stop, 'stop_activities', [])
-        for sa in stop_acts:
-            act = sa.activity if hasattr(sa, 'activity') else None
+
+        for sa in getattr(stop, "stop_activities", []):
+            act = getattr(sa, "activity", None)
             if act:
-                cost = float(act.cost_estimate or 0.0)
-                category = act.category or "uncategorized"
-                
+                cost = float(getattr(act, "cost", None) or getattr(act, "cost_estimate", 0.0) or 0.0)
+                category = getattr(act, "category", "Uncategorized")
                 stop_cost += cost
                 by_category[category] = by_category.get(category, 0.0) + cost
-                
                 stop_activities_list.append({
-                    "id": act.id,
-                    "name": act.name,
+                    "id": str(getattr(act, "id", "")),
+                    "name": getattr(act, "name", "Activity"),
                     "cost": cost,
-                    "category": category
+                    "category": category,
+                    "duration_hours": float(getattr(act, "duration_hours", getattr(act, "durationHours", 1.0)) or 1.0)
                 })
 
-        city_name = stop.city.name if hasattr(stop, 'city') and stop.city else f"Stop {stop.id}"
+        city_obj = getattr(stop, "city", None)
+        city_name = getattr(city_obj, "name", f"Stop {stop.id}") if city_obj else f"Stop {stop.id}"
         by_stop.append({
-            "stop_id": stop.id,
+            "stop_id": str(stop.id),
             "city": city_name,
-            "cost": stop_cost,
+            "cost": round(stop_cost, 2),
             "activities": stop_activities_list
         })
         total_cost += stop_cost
 
     num_days = 1
-    if getattr(trip, 'start_date', None) and getattr(trip, 'end_date', None):
-        delta = (trip.end_date - trip.start_date).days + 1
+    start_date = getattr(trip, "start_date", None)
+    end_date = getattr(trip, "end_date", None)
+    if start_date and end_date:
+        delta = (end_date - start_date).days + 1
         if delta > 0:
             num_days = delta
 
