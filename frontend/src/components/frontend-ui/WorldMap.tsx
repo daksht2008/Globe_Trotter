@@ -12,12 +12,11 @@ import {
   Trash2,
   ArrowUp,
   ArrowDown,
-  Layers,
   Calendar,
-  Sparkles,
   CheckCircle2,
   Route,
   ChevronRight,
+  AlertCircle,
 } from 'lucide-react';
 
 // Fix default Leaflet marker icon for Vite bundler
@@ -54,12 +53,18 @@ export interface SelectedStop {
 
 export type DayTargetOption = 'existing-day' | 'single-new-day' | 'separate-new-days';
 
-interface WorldMapProps {
+export interface WorldMapProps {
   onAddStops?: (
     stops: SelectedStop[],
     options: { mode: DayTargetOption; targetDayId?: string }
   ) => void;
-  initialStops?: SelectedStop[];
+  selectedStops?: SelectedStop[];
+  onSelectedStopsChange?: (stops: SelectedStop[]) => void;
+  dayTargetMode?: DayTargetOption;
+  onDayTargetModeChange?: (mode: DayTargetOption) => void;
+  selectedDayId?: string;
+  onSelectedDayIdChange?: (dayId: string) => void;
+  maxStops?: number;
 }
 
 // ── Map Click Handler ─────────────────────────────────────────────────────────
@@ -115,17 +120,54 @@ const pendingPinIcon = new DivIcon({
   popupAnchor: [0, -12],
 });
 
-export function WorldMap({ onAddStops }: WorldMapProps) {
+export function WorldMap({
+  onAddStops,
+  selectedStops: controlledStops,
+  onSelectedStopsChange,
+  dayTargetMode: controlledDayMode,
+  onDayTargetModeChange,
+  selectedDayId: controlledDayId,
+  onSelectedDayIdChange,
+  maxStops = 6,
+}: WorldMapProps) {
   const { trips, activeTripId, showToast, formatCurrency, updateTrip, navigate } = useApp();
   const [cities, setCities] = useState<MapCity[]>([]);
   const [loadingGeo, setLoadingGeo] = useState(false);
   const [pendingPin, setPendingPin] = useState<SelectedStop | null>(null);
 
-  // Multi-stop state
-  const [selectedStops, setSelectedStops] = useState<SelectedStop[]>([]);
-  const [dayTargetMode, setDayTargetMode] = useState<DayTargetOption>('existing-day');
-  const [selectedDayId, setSelectedDayId] = useState<string>('');
+  // Internal state if uncontrolled
+  const [internalStops, setInternalStops] = useState<SelectedStop[]>([]);
+  const [internalDayMode, setInternalDayMode] = useState<DayTargetOption>('existing-day');
+  const [internalDayId, setInternalDayId] = useState<string>('');
   const [isTrayExpanded, setIsTrayExpanded] = useState<boolean>(true);
+
+  const selectedStops = controlledStops ?? internalStops;
+  const setSelectedStops = (updater: SelectedStop[] | ((prev: SelectedStop[]) => SelectedStop[])) => {
+    const nextVal = typeof updater === 'function' ? updater(selectedStops) : updater;
+    if (onSelectedStopsChange) {
+      onSelectedStopsChange(nextVal);
+    } else {
+      setInternalStops(nextVal);
+    }
+  };
+
+  const dayTargetMode = controlledDayMode ?? internalDayMode;
+  const setDayTargetMode = (mode: DayTargetOption) => {
+    if (onDayTargetModeChange) {
+      onDayTargetModeChange(mode);
+    } else {
+      setInternalDayMode(mode);
+    }
+  };
+
+  const selectedDayId = controlledDayId ?? internalDayId;
+  const setSelectedDayId = (id: string) => {
+    if (onSelectedDayIdChange) {
+      onSelectedDayIdChange(id);
+    } else {
+      setInternalDayId(id);
+    }
+  };
 
   const activeTrip = trips.find((t) => t.id === activeTripId) || trips[0];
   const tripDays = activeTrip?.days || [];
@@ -169,8 +211,13 @@ export function WorldMap({ onAddStops }: WorldMapProps) {
       });
   }, []);
 
-  // Mode B: Reverse geocode on map click via Nominatim
+  // Reverse geocode on map click via Nominatim
   const handleMapClick = async (lat: number, lng: number) => {
+    if (selectedStops.length >= maxStops) {
+      showToast(`⚠️ Maximum ${maxStops} stop places reached! Remove a stop to add another.`);
+      return;
+    }
+
     setPendingPin(null);
     setLoadingGeo(true);
     try {
@@ -202,20 +249,25 @@ export function WorldMap({ onAddStops }: WorldMapProps) {
     }
   };
 
-  // Add a stop to the multi-point queue
+  // Add a stop to the multi-point queue (capped at maxStops)
   const handleAddStopToQueue = (stop: Omit<SelectedStop, 'id'>) => {
+    if (selectedStops.length >= maxStops) {
+      showToast(`⚠️ Maximum ${maxStops} places can be selected at a time.`);
+      return;
+    }
+
     const newStop: SelectedStop = {
       ...stop,
       id: `stop-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
     };
-    setSelectedStops((prev) => [...prev, newStop]);
+    setSelectedStops([...selectedStops, newStop]);
     setPendingPin(null);
-    showToast(`📍 Added "${stop.name}" to stop points (#${selectedStops.length + 1})`);
+    showToast(`📍 Added "${stop.name}" (#${selectedStops.length + 1}/${maxStops})`);
   };
 
   // Remove stop from queue
   const handleRemoveStop = (id: string) => {
-    setSelectedStops((prev) => prev.filter((s) => s.id !== id));
+    setSelectedStops(selectedStops.filter((s) => s.id !== id));
   };
 
   // Reorder stops
@@ -254,14 +306,12 @@ export function WorldMap({ onAddStops }: WorldMapProps) {
       return;
     }
 
-    // Default internal handler applying chosen day mode
     const times = ['09:00 AM', '11:30 AM', '02:00 PM', '04:30 PM', '07:00 PM', '09:00 PM'];
     const currentDays = [...(activeTrip.days || [])];
 
     if (dayTargetMode === 'existing-day') {
       // Option 1 (Default): Add to existing day without creating new days
       if (currentDays.length === 0) {
-        // If trip has no days, create Day 1 and put all stops into Day 1
         const newActivities = selectedStops.map((stop, idx) => ({
           id: `act-${Date.now()}-${idx}`,
           time: times[idx % times.length],
@@ -280,7 +330,6 @@ export function WorldMap({ onAddStops }: WorldMapProps) {
         updateTrip(activeTrip.id, { days: [newDay] });
         showToast(`✅ Added ${selectedStops.length} stops to Day 1!`);
       } else {
-        // Target existing day
         const targetDay = currentDays.find((d) => d.id === selectedDayId) || currentDays[0];
         const existingCount = targetDay.activities.length;
         const newActivities = selectedStops.map((stop, idx) => ({
@@ -365,13 +414,21 @@ export function WorldMap({ onAddStops }: WorldMapProps) {
       <div className="absolute top-4 left-4 z-[9999] flex flex-wrap items-center gap-2">
         <div className="rounded-xl bg-white/95 backdrop-blur-md px-3.5 py-2 text-xs font-semibold text-slate-800 shadow-md border border-slate-200/80 flex items-center gap-2">
           <Navigation className="h-3.5 w-3.5 text-sky-600 animate-bounce" />
-          <span>Point multiple stops by clicking anywhere or selecting cities</span>
+          <span>Point up to {maxStops} stops by clicking anywhere or selecting cities</span>
         </div>
 
         {selectedStops.length > 0 && (
-          <div className="rounded-xl bg-sky-600 text-white px-3 py-2 text-xs font-bold shadow-md flex items-center gap-1.5 animate-fade-in">
+          <div
+            className={`rounded-xl px-3 py-2 text-xs font-bold shadow-md flex items-center gap-1.5 animate-fade-in ${
+              selectedStops.length >= maxStops
+                ? 'bg-amber-600 text-white ring-2 ring-amber-400'
+                : 'bg-sky-600 text-white'
+            }`}
+          >
             <Route className="h-3.5 w-3.5" />
-            <span>{selectedStops.length} Stops Marked</span>
+            <span>
+              {selectedStops.length} / {maxStops} Stops Marked {selectedStops.length >= maxStops && '(Max)'}
+            </span>
           </div>
         )}
       </div>
@@ -433,21 +490,29 @@ export function WorldMap({ onAddStops }: WorldMapProps) {
                     )}
 
                     <div className="mt-3 flex flex-col gap-1.5">
-                      <button
-                        onClick={() =>
-                          handleAddStopToQueue({
-                            name: city.name,
-                            country: city.country,
-                            lat: city.lat,
-                            lng: city.lng,
-                            cost: city.avgDailyBudget,
-                          })
-                        }
-                        className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-sky-600 py-1.5 text-xs font-semibold text-white hover:bg-sky-700 transition shadow-sm"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        Add as Stop #{selectedStops.length + 1}
-                      </button>
+                      {selectedStops.length >= maxStops && !isSelected ? (
+                        <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                          <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span>Max {maxStops} stops reached.</span>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() =>
+                            handleAddStopToQueue({
+                              name: city.name,
+                              country: city.country,
+                              lat: city.lat,
+                              lng: city.lng,
+                              cost: city.avgDailyBudget,
+                            })
+                          }
+                          disabled={isSelected}
+                          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-sky-600 py-1.5 text-xs font-semibold text-white hover:bg-sky-700 disabled:opacity-50 transition shadow-sm"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          {isSelected ? 'Already in Route' : `Add as Stop #${selectedStops.length + 1} of ${maxStops}`}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -456,13 +521,13 @@ export function WorldMap({ onAddStops }: WorldMapProps) {
           );
         })}
 
-        {/* Render Selected Stops as Numbered Badges */}
+        {/* Render Selected Stops as Numbered Badges (1 to 6) */}
         {selectedStops.map((stop, idx) => (
           <Marker key={stop.id} position={[stop.lat, stop.lng]} icon={createNumberedIcon(idx + 1)}>
             <Popup maxWidth={240}>
               <div className="p-1">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-sky-700 uppercase tracking-wide">
-                  <Route className="h-3 w-3" /> Stop #{idx + 1}
+                  <Route className="h-3 w-3" /> Stop #{idx + 1} of {maxStops}
                 </div>
                 <div className="font-bold text-slate-900 text-sm mt-0.5">{stop.name}</div>
                 <div className="text-xs text-slate-500">{stop.country}</div>
@@ -493,22 +558,29 @@ export function WorldMap({ onAddStops }: WorldMapProps) {
                   </div>
                 )}
                 <div className="mt-3 flex flex-col gap-1.5">
-                  <button
-                    onClick={() =>
-                      handleAddStopToQueue({
-                        name: pendingPin.name,
-                        country: pendingPin.country,
-                        lat: pendingPin.lat,
-                        lng: pendingPin.lng,
-                        display_name: pendingPin.display_name,
-                        cost: 25,
-                      })
-                    }
-                    className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-sky-600 py-1.5 text-xs font-semibold text-white hover:bg-sky-700 transition shadow-sm"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add as Stop #{selectedStops.length + 1}
-                  </button>
+                  {selectedStops.length >= maxStops ? (
+                    <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                      <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                      <span>Max {maxStops} stops reached. Remove one first.</span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() =>
+                        handleAddStopToQueue({
+                          name: pendingPin.name,
+                          country: pendingPin.country,
+                          lat: pendingPin.lat,
+                          lng: pendingPin.lng,
+                          display_name: pendingPin.display_name,
+                          cost: 25,
+                        })
+                      }
+                      className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-sky-600 py-1.5 text-xs font-semibold text-white hover:bg-sky-700 transition shadow-sm"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add as Stop #{selectedStops.length + 1} of {maxStops}
+                    </button>
+                  )}
                   <button
                     onClick={() => setPendingPin(null)}
                     className="flex w-full items-center justify-center gap-1 rounded-lg py-1 text-xs text-slate-500 hover:text-slate-700 transition"
@@ -528,11 +600,15 @@ export function WorldMap({ onAddStops }: WorldMapProps) {
           {/* Header Bar */}
           <div className="flex items-center justify-between bg-slate-900 px-4 py-2.5 text-white">
             <div className="flex items-center gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-500 text-[11px] font-bold text-white">
+              <span
+                className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold text-white ${
+                  selectedStops.length >= maxStops ? 'bg-amber-500' : 'bg-sky-500'
+                }`}
+              >
                 {selectedStops.length}
               </span>
               <span className="text-xs sm:text-sm font-bold tracking-tight">
-                {selectedStops.length === 1 ? '1 Stop Selected' : `${selectedStops.length} Stops Pointed on Map`}
+                {selectedStops.length} / {maxStops} Stops Marked
               </span>
             </div>
 
@@ -606,7 +682,7 @@ export function WorldMap({ onAddStops }: WorldMapProps) {
                     <span>How would you like to assign these stops?</span>
                   </div>
                   <span className="text-[11px] text-slate-500 font-medium">
-                    (Default: Keep together on one day)
+                    (Default: Add into single day)
                   </span>
                 </div>
 

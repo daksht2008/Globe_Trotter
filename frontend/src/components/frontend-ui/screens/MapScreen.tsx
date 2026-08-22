@@ -1,12 +1,30 @@
 import { useState } from 'react';
 import { WorldMap, type SelectedStop, type DayTargetOption } from '../WorldMap';
 import { useApp } from '../AppContext';
-import { MapPin, Globe, Navigation2, Compass, Layers, ArrowRight } from 'lucide-react';
+import {
+  MapPin,
+  Globe,
+  Navigation2,
+  Compass,
+  ArrowRight,
+  PlusCircle,
+  Calendar,
+  Layers,
+  Sparkles,
+  CheckCircle2,
+} from 'lucide-react';
 
 export function MapScreen() {
   const { trips, activeTripId, openTrip, showToast, navigate, updateTrip } = useApp();
   const activeTrip = trips.find((t) => t.id === activeTripId) || trips[0];
   const [lastAddedBatch, setLastAddedBatch] = useState<string[]>([]);
+
+  // Multi-stop state lifted for Itinerary Bar control
+  const [selectedStops, setSelectedStops] = useState<SelectedStop[]>([]);
+  const [dayTargetMode, setDayTargetMode] = useState<DayTargetOption>('existing-day');
+  const [selectedDayId, setSelectedDayId] = useState<string>('');
+
+  const tripDays = activeTrip?.days || [];
 
   const handleAddStops = (
     stops: SelectedStop[],
@@ -40,9 +58,9 @@ export function MapScreen() {
           activities: newActivities,
         };
         updateTrip(activeTrip.id, { days: [newDay] });
-        showToast(`📍 Added ${stops.length} stop(s) to Day 1!`);
+        showToast(`📍 Added ${stops.length} stop(s) to Day 1 of "${activeTrip.title}"!`);
       } else {
-        const targetDay = currentDays.find((d) => d.id === options.targetDayId) || currentDays[0];
+        const targetDay = currentDays.find((d) => d.id === (options.targetDayId || selectedDayId)) || currentDays[0];
         const existingCount = targetDay.activities.length;
         const newActivities = stops.map((stop, idx) => ({
           id: `act-${Date.now()}-${idx}`,
@@ -108,6 +126,7 @@ export function MapScreen() {
     }
 
     setLastAddedBatch(stops.map((s) => s.name));
+    setSelectedStops([]);
   };
 
   return (
@@ -122,7 +141,7 @@ export function MapScreen() {
             World Map Explorer
           </h1>
           <p className="mt-1 text-sm text-slate-500 max-w-2xl">
-            Point multiple stops sequentially across the world. By default, stops are bundled into your current day without inflating your itinerary days, or choose your preferred day assignment mode.
+            Select up to <strong>6 places</strong> on the world map. Use the itinerary bar below to choose whether to add them into an existing single day, bundle into a single new day, or create one stop per day.
           </p>
         </div>
 
@@ -145,24 +164,122 @@ export function MapScreen() {
         )}
       </div>
 
-      {/* Active Trip Status Bar */}
+      {/* Active Trip & Itinerary Configuration Bar */}
       {activeTrip ? (
-        <div className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-sky-200 bg-gradient-to-r from-sky-50 to-blue-50/50 px-5 py-3.5 shadow-sm">
-          <div className="flex items-center gap-2.5 text-sm font-semibold text-sky-950">
-            <Navigation2 className="h-4 w-4 text-sky-600" />
-            <span>
-              Active Trip: <strong className="text-sky-700">"{activeTrip.title}"</strong> ({activeTrip.destination}) • {activeTrip.days?.length || 0} Day(s)
-            </span>
+        <div className="mb-5 rounded-2xl border border-sky-200 bg-gradient-to-r from-sky-50/90 via-white to-blue-50/80 p-4 shadow-sm space-y-3">
+          {/* Top Row: Trip Info & View Itinerary Link */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-sky-100 pb-3">
+            <div className="flex items-center gap-2.5 text-sm font-semibold text-sky-950">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-600 text-white shadow">
+                <Navigation2 className="h-4 w-4" />
+              </div>
+              <div>
+                <span>
+                  Active Trip: <strong className="text-sky-800">"{activeTrip.title}"</strong> ({activeTrip.destination}) • {tripDays.length} Day(s)
+                </span>
+                {selectedStops.length > 0 && (
+                  <span className={`ml-2.5 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                    selectedStops.length >= 6 ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-sky-100 text-sky-800 border border-sky-300'
+                  }`}>
+                    📍 {selectedStops.length} / 6 Places Selected {selectedStops.length >= 6 && '(Max)'}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {selectedStops.length > 0 && (
+                <button
+                  onClick={() => handleAddStops(selectedStops, { mode: dayTargetMode, targetDayId: selectedDayId })}
+                  className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-1.5 text-xs font-bold text-white shadow hover:from-emerald-500 hover:to-teal-500 transition animate-bounce-short"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>Add {selectedStops.length} Stop{selectedStops.length > 1 ? 's' : ''} to Trip</span>
+                </button>
+              )}
+              <button
+                onClick={() => navigate('itinerary')}
+                className="flex items-center gap-1.5 rounded-xl bg-sky-600 px-3.5 py-1.5 text-xs font-bold text-white shadow hover:bg-sky-700 transition"
+              >
+                <span>View Itinerary</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => navigate('itinerary')}
-              className="flex items-center gap-1.5 rounded-xl bg-sky-600 px-3.5 py-1.5 text-xs font-bold text-white shadow hover:bg-sky-700 transition"
-            >
-              <span>View Itinerary</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </button>
+          {/* Bottom Row: Itinerary Bar Day Options Controls */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 font-bold text-slate-700">
+              <Calendar className="h-4 w-4 text-sky-600" />
+              <span>Day Assignment Option:</span>
+            </div>
+
+            {/* Option Buttons */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Option 1: Single Day (Existing) */}
+              <div className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 transition ${
+                dayTargetMode === 'existing-day'
+                  ? 'border-sky-500 bg-sky-600 text-white font-bold shadow-sm'
+                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 font-semibold'
+              }`}>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="topDayMode"
+                    checked={dayTargetMode === 'existing-day'}
+                    onChange={() => setDayTargetMode('existing-day')}
+                    className="h-3 w-3 text-sky-600"
+                  />
+                  <span>Single Day (Existing)</span>
+                </label>
+
+                {dayTargetMode === 'existing-day' && tripDays.length > 0 && (
+                  <select
+                    value={selectedDayId || tripDays[0]?.id}
+                    onChange={(e) => setSelectedDayId(e.target.value)}
+                    className="ml-1 rounded-lg border border-sky-300 bg-white py-0.5 px-1.5 text-[11px] font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  >
+                    {tripDays.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        Day {d.dayNumber} ({d.date || `Day ${d.dayNumber}`})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Option 2: Single New Day */}
+              <label className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 cursor-pointer transition ${
+                dayTargetMode === 'single-new-day'
+                  ? 'border-sky-500 bg-sky-600 text-white font-bold shadow-sm'
+                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 font-semibold'
+              }`}>
+                <input
+                  type="radio"
+                  name="topDayMode"
+                  checked={dayTargetMode === 'single-new-day'}
+                  onChange={() => setDayTargetMode('single-new-day')}
+                  className="h-3 w-3 text-sky-600"
+                />
+                <span>Single New Day</span>
+              </label>
+
+              {/* Option 3: One Stop Per Day */}
+              <label className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 cursor-pointer transition ${
+                dayTargetMode === 'separate-new-days'
+                  ? 'border-sky-500 bg-sky-600 text-white font-bold shadow-sm'
+                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 font-semibold'
+              }`}>
+                <input
+                  type="radio"
+                  name="topDayMode"
+                  checked={dayTargetMode === 'separate-new-days'}
+                  onChange={() => setDayTargetMode('separate-new-days')}
+                  className="h-3 w-3 text-sky-600"
+                />
+                <span>One Stop Per Day</span>
+              </label>
+            </div>
           </div>
         </div>
       ) : (
@@ -192,9 +309,18 @@ export function MapScreen() {
         </div>
       )}
 
-      {/* Map Container */}
-      <div style={{ height: '70vh' }}>
-        <WorldMap onAddStops={handleAddStops} />
+      {/* Map Container (Max 6 Stops) */}
+      <div style={{ height: '68vh' }}>
+        <WorldMap
+          maxStops={6}
+          selectedStops={selectedStops}
+          onSelectedStopsChange={setSelectedStops}
+          dayTargetMode={dayTargetMode}
+          onDayTargetModeChange={setDayTargetMode}
+          selectedDayId={selectedDayId}
+          onSelectedDayIdChange={setSelectedDayId}
+          onAddStops={handleAddStops}
+        />
       </div>
 
       {/* Legend & Guide */}
@@ -205,8 +331,8 @@ export function MapScreen() {
             Featured Destinations
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-sky-600 text-[9px] font-bold text-white shadow">1</span>
-            Marked Multi-Stop Route
+            <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-sky-600 text-[9px] font-bold text-white shadow">1-6</span>
+            Marked Route (Up to 6 Places)
           </span>
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-3 w-3 rounded-full bg-red-500 ring-4 ring-red-200" />
@@ -215,7 +341,7 @@ export function MapScreen() {
         </div>
 
         <div className="text-[11px] text-slate-400 italic">
-          Tip: You can reorder, delete, and bundle multiple points directly before saving to your itinerary.
+          Select up to 6 stop places per route. Choose your preferred day mode directly in the itinerary bar above.
         </div>
       </div>
     </div>
