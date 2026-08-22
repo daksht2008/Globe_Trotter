@@ -12,7 +12,6 @@ import {
   Trash2,
   ArrowUp,
   ArrowDown,
-  Calendar,
   CheckCircle2,
   Route,
   ChevronRight,
@@ -152,22 +151,7 @@ export function WorldMap({
   };
 
   const dayTargetMode = controlledDayMode ?? internalDayMode;
-  const setDayTargetMode = (mode: DayTargetOption) => {
-    if (onDayTargetModeChange) {
-      onDayTargetModeChange(mode);
-    } else {
-      setInternalDayMode(mode);
-    }
-  };
-
   const selectedDayId = controlledDayId ?? internalDayId;
-  const setSelectedDayId = (id: string) => {
-    if (onSelectedDayIdChange) {
-      onSelectedDayIdChange(id);
-    } else {
-      setInternalDayId(id);
-    }
-  };
 
   const activeTrip = trips.find((t) => t.id === activeTripId) || trips[0];
   const tripDays = activeTrip?.days || [];
@@ -175,9 +159,13 @@ export function WorldMap({
   // Initialize selectedDayId when activeTrip changes
   useEffect(() => {
     if (tripDays.length > 0 && !selectedDayId) {
-      setSelectedDayId(tripDays[0].id);
+      if (onSelectedDayIdChange) {
+        onSelectedDayIdChange(tripDays[0].id);
+      } else {
+        setInternalDayId(tripDays[0].id);
+      }
     }
-  }, [tripDays, selectedDayId]);
+  }, [tripDays, selectedDayId, onSelectedDayIdChange]);
 
   // Fetch seeded cities from the API
   useEffect(() => {
@@ -631,7 +619,7 @@ export function WorldMap({
 
           {/* Tray Body */}
           {isTrayExpanded && (
-            <div className="p-4 space-y-4 max-h-[38vh] overflow-y-auto">
+            <div className="p-3.5 space-y-3 max-h-[35vh] overflow-y-auto">
               {/* Sequential Stops Horizontal / Vertical List */}
               <div className="flex flex-wrap items-center gap-2">
                 {selectedStops.map((stop, idx) => (
@@ -642,7 +630,7 @@ export function WorldMap({
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-600 text-[10px] font-extrabold text-white">
                       {idx + 1}
                     </span>
-                    <span className="truncate max-w-[120px] font-bold text-slate-900">{stop.name}</span>
+                    <span className="truncate max-w-[140px] font-bold text-slate-900">{stop.name}</span>
                     <span className="text-[10px] text-slate-500">{stop.country}</span>
 
                     <div className="ml-1 flex items-center gap-0.5 border-l border-sky-200 pl-1">
@@ -674,106 +662,8 @@ export function WorldMap({
                 ))}
               </div>
 
-              {/* Day Assignment Options */}
-              <div className="rounded-xl bg-slate-50 p-3 border border-slate-200/80">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-                  <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <Calendar className="h-3.5 w-3.5 text-sky-600" />
-                    <span>How would you like to assign these stops?</span>
-                  </div>
-                  <span className="text-[11px] text-slate-500 font-medium">
-                    (Default: Add into single day)
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {/* Option 1: Add to Existing Day (DEFAULT) */}
-                  <label
-                    className={`flex flex-col gap-1 p-2.5 rounded-xl border cursor-pointer transition text-xs ${
-                      dayTargetMode === 'existing-day'
-                        ? 'border-sky-600 bg-sky-50/60 ring-1 ring-sky-600 text-sky-900'
-                        : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 font-bold">
-                      <input
-                        type="radio"
-                        name="dayMode"
-                        checked={dayTargetMode === 'existing-day'}
-                        onChange={() => setDayTargetMode('existing-day')}
-                        className="text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
-                      />
-                      <span>Add to Existing Day</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 leading-tight">
-                      Adds all stops as activities within a chosen day (no new day created).
-                    </p>
-
-                    {dayTargetMode === 'existing-day' && tripDays.length > 0 && (
-                      <select
-                        value={selectedDayId || tripDays[0]?.id}
-                        onChange={(e) => setSelectedDayId(e.target.value)}
-                        className="mt-1 block w-full rounded-lg border border-sky-300 bg-white py-1 px-2 text-xs font-semibold text-slate-800 focus:border-sky-500 focus:ring-sky-500"
-                      >
-                        {tripDays.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            Day {d.dayNumber} ({d.date || `Day ${d.dayNumber}`})
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </label>
-
-                  {/* Option 2: Single New Day for all stops */}
-                  <label
-                    className={`flex flex-col gap-1 p-2.5 rounded-xl border cursor-pointer transition text-xs ${
-                      dayTargetMode === 'single-new-day'
-                        ? 'border-sky-600 bg-sky-50/60 ring-1 ring-sky-600 text-sky-900'
-                        : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 font-bold">
-                      <input
-                        type="radio"
-                        name="dayMode"
-                        checked={dayTargetMode === 'single-new-day'}
-                        onChange={() => setDayTargetMode('single-new-day')}
-                        className="text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
-                      />
-                      <span>Single New Day</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 leading-tight">
-                      Creates 1 new day (Day {(tripDays.length || 0) + 1}) grouping all stops together.
-                    </p>
-                  </label>
-
-                  {/* Option 3: Separate New Day for each stop */}
-                  <label
-                    className={`flex flex-col gap-1 p-2.5 rounded-xl border cursor-pointer transition text-xs ${
-                      dayTargetMode === 'separate-new-days'
-                        ? 'border-sky-600 bg-sky-50/60 ring-1 ring-sky-600 text-sky-900'
-                        : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 font-bold">
-                      <input
-                        type="radio"
-                        name="dayMode"
-                        checked={dayTargetMode === 'separate-new-days'}
-                        onChange={() => setDayTargetMode('separate-new-days')}
-                        className="text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
-                      />
-                      <span>Separate Day Per Stop</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 leading-tight">
-                      Creates {selectedStops.length} separate days, one for each individual stop.
-                    </p>
-                  </label>
-                </div>
-              </div>
-
-              {/* Commit Action Button */}
-              <div className="flex items-center justify-between gap-3 pt-1">
+              {/* Commit Action Button & Target Trip Info */}
+              <div className="flex items-center justify-between gap-3 pt-1 border-t border-slate-100">
                 <div className="text-xs text-slate-500">
                   Target trip:{' '}
                   <strong className="text-slate-800">
@@ -783,7 +673,7 @@ export function WorldMap({
 
                 <button
                   onClick={handleConfirmAndAddStops}
-                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-600 to-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-sky-500/25 hover:from-sky-500 hover:to-blue-500 active:scale-98 transition"
+                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-600 to-blue-600 px-5 py-2 text-xs font-bold text-white shadow-lg shadow-sky-500/25 hover:from-sky-500 hover:to-blue-500 active:scale-98 transition"
                 >
                   <CheckCircle2 className="h-4 w-4" />
                   <span>
