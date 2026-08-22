@@ -1,6 +1,6 @@
 /**
  * GlobeTrotter Backend API Service Layer
- * Connects frontend views with Flask backend endpoints
+ * Connects frontend views with Flask backend endpoints (Phase 1, 2 & 3)
  */
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
@@ -97,6 +97,8 @@ export interface BackendTrip {
   cover_url?: string;
   is_public: boolean;
   share_token?: string;
+  start_date?: string;
+  end_date?: string;
   created_at: string;
   updated_at: string;
   stops?: BackendStop[];
@@ -110,6 +112,15 @@ export interface BackendStop {
   notes?: string;
   city?: BackendCity;
   activities?: BackendActivity[];
+  stop_activities?: Array<{
+    id: number;
+    stop_id: number;
+    activity_id: number;
+    day_number?: number;
+    time_slot?: string;
+    notes?: string;
+    activity?: BackendActivity;
+  }>;
 }
 
 export interface BackendCity {
@@ -129,9 +140,10 @@ export interface BackendActivity {
   name: string;
   description?: string;
   category?: string;
+  cost_estimate?: number;
   estimated_cost?: number;
   duration_hours?: number;
-  city_id: number;
+  city_id?: number;
   image_url?: string;
   address?: string;
   rating?: number;
@@ -143,7 +155,7 @@ export const tripsApi = {
     return request<BackendTrip[]>('/trips');
   },
 
-  createTrip: async (data: { name: string; description?: string; cover_url?: string }): Promise<BackendTrip> => {
+  createTrip: async (data: { name: string; description?: string; cover_url?: string; start_date?: string; end_date?: string }): Promise<BackendTrip> => {
     return request<BackendTrip>('/trips', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -156,7 +168,7 @@ export const tripsApi = {
 
   updateTrip: async (
     tripId: number | string,
-    data: { name?: string; description?: string; cover_url?: string; is_public?: boolean }
+    data: { name?: string; description?: string; cover_url?: string; is_public?: boolean; start_date?: string; end_date?: string }
   ): Promise<BackendTrip> => {
     return request<BackendTrip>(`/trips/${tripId}`, {
       method: 'PUT',
@@ -173,9 +185,21 @@ export const tripsApi = {
   getTripBudget: async (tripId: number | string) => {
     return request<{
       trip_id: number;
+      total_cost: number;
       total_estimated_cost_usd: number;
       currency: string;
+      avg_per_day: number;
+      num_days: number;
+      by_category: Record<string, number>;
       categories: Record<string, number>;
+      by_stop: Array<{
+        stop_id: number;
+        city: string;
+        cost: number;
+        cost_usd: number;
+        activity_count: number;
+        activities?: any[];
+      }>;
       stops_breakdown: Array<{
         city: string;
         stop_id: number;
@@ -183,6 +207,25 @@ export const tripsApi = {
         activity_count: number;
       }>;
     }>(`/trips/${tripId}/budget`);
+  },
+
+  getTripTimeline: async (tripId: number | string) => {
+    return request<{
+      trip_id: number;
+      name: string;
+      start_date: string;
+      end_date: string;
+      days: Array<{
+        day_number: number;
+        date?: string;
+        slots: {
+          morning: any[];
+          afternoon: any[];
+          evening: any[];
+        };
+        activities: any[];
+      }>;
+    }>(`/trips/${tripId}/timeline`);
   },
 };
 
@@ -243,24 +286,58 @@ export const stopsApi = {
 };
 
 // ---------------- ACTIVITIES API ----------------
+export interface ActivityFilterParams {
+  city_id?: number;
+  category?: string;
+  q?: string;
+  min_cost?: number;
+  max_cost?: number;
+  max_duration?: number;
+  sort_by?: 'cost_asc' | 'cost_desc' | 'duration_asc' | 'duration_desc' | string;
+  limit?: number;
+}
+
 export const activitiesApi = {
-  createCustomActivity: async (
-    cityId: number | string,
-    data: { name: string; description?: string; category?: string; estimated_cost?: number; duration_hours?: number; address?: string }
-  ): Promise<BackendActivity> => {
-    return request<BackendActivity>(`/cities/${cityId}/activities`, {
+  searchActivities: async (params?: ActivityFilterParams): Promise<BackendActivity[]> => {
+    const searchParams = new URLSearchParams();
+    if (params?.city_id) searchParams.append('city_id', String(params.city_id));
+    if (params?.category) searchParams.append('category', params.category);
+    if (params?.q) searchParams.append('q', params.q);
+    if (params?.min_cost !== undefined) searchParams.append('min_cost', String(params.min_cost));
+    if (params?.max_cost !== undefined) searchParams.append('max_cost', String(params.max_cost));
+    if (params?.max_duration !== undefined) searchParams.append('max_duration', String(params.max_duration));
+    if (params?.sort_by) searchParams.append('sort_by', params.sort_by);
+    if (params?.limit) searchParams.append('limit', String(params.limit));
+    const qs = searchParams.toString();
+    return request<BackendActivity[]>(`/activities${qs ? `?${qs}` : ''}`);
+  },
+
+  createCustomActivity: async (data: {
+    name: string;
+    description?: string;
+    category?: string;
+    cost_estimate?: number;
+    duration_hours?: number;
+    city_id?: number;
+    image_url?: string;
+  }): Promise<BackendActivity> => {
+    return request<BackendActivity>('/activities', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  attachToStop: async (stopId: number | string, activityId: number | string) => {
-    return request(`/stops/${stopId}/activities/${activityId}`, {
+  addStopActivity: async (
+    stopId: number | string,
+    data: { activity_id: number; day_number?: number; time_slot?: string; notes?: string }
+  ) => {
+    return request(`/stops/${stopId}/activities`, {
       method: 'POST',
+      body: JSON.stringify(data),
     });
   },
 
-  removeFromStop: async (stopId: number | string, activityId: number | string) => {
+  removeStopActivity: async (stopId: number | string, activityId: number | string) => {
     return request(`/stops/${stopId}/activities/${activityId}`, {
       method: 'DELETE',
     });
@@ -269,9 +346,15 @@ export const activitiesApi = {
 
 // ---------------- SHARE API ----------------
 export const shareApi = {
-  shareTrip: async (tripId: number | string): Promise<{ share_token: string; url: string }> => {
-    return request<{ share_token: string; url: string }>(`/trips/${tripId}/share`, {
+  shareTrip: async (tripId: number | string): Promise<{ share_token: string; share_url: string; url: string; is_public: boolean }> => {
+    return request<{ share_token: string; share_url: string; url: string; is_public: boolean }>(`/trips/${tripId}/share`, {
       method: 'POST',
+    });
+  },
+
+  revokeShareTrip: async (tripId: number | string): Promise<{ message: string; is_public: boolean }> => {
+    return request<{ message: string; is_public: boolean }>(`/trips/${tripId}/share`, {
+      method: 'DELETE',
     });
   },
 
