@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   LogOut,
+  Map,
 } from 'lucide-react';
 
 interface NavItem {
@@ -25,6 +26,7 @@ const navItems: NavItem[] = [
   { id: 'my-trips', label: 'My Trips', icon: Plane },
   { id: 'create-trip', label: 'Plan New', icon: Plus },
   { id: 'discover-cities', label: 'Discover', icon: Compass },
+  { id: 'map', label: 'World Map', icon: Map },
   { id: 'budget', label: 'Budget', icon: Wallet },
   { id: 'calendar', label: 'Calendar', icon: CalendarDays },
 ];

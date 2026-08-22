@@ -18,7 +18,7 @@ def search_activities():
     max_cost = request.args.get('max_cost', type=float)
     max_duration = request.args.get('max_duration', type=float)
     sort_by = request.args.get('sort_by', '').strip().lower()
-    limit = request.args.get('limit', default=50, type=int)
+    limit = min(request.args.get('limit', default=200, type=int), 500)
 
     query = Activity.query
     if city_id:
