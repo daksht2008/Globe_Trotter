@@ -26,7 +26,7 @@ def search_activities():
 @jwt_required()
 def add_stop_activity(stop_id):
     current_user_id = get_jwt_identity()
-    stop = Stop.query.get(stop_id)
+    stop = db.session.get(Stop, stop_id)
     if not stop or stop.trip.user_id != int(current_user_id):
         return jsonify({"error": "Stop not found or unauthorized"}), 404
 
@@ -35,7 +35,7 @@ def add_stop_activity(stop_id):
     if not activity_id:
         return jsonify({"error": "activity_id is required"}), 400
 
-    activity = Activity.query.get(activity_id)
+    activity = db.session.get(Activity, int(activity_id))
     if not activity:
         return jsonify({"error": "Activity not found"}), 404
 
@@ -59,7 +59,7 @@ def add_stop_activity(stop_id):
 @jwt_required()
 def remove_stop_activity(stop_id, act_id):
     current_user_id = get_jwt_identity()
-    stop = Stop.query.get(stop_id)
+    stop = db.session.get(Stop, stop_id)
     if not stop or stop.trip.user_id != int(current_user_id):
         return jsonify({"error": "Stop not found or unauthorized"}), 404
 

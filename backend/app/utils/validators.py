@@ -41,3 +41,25 @@ class StopActivityCreateSchema(BaseModel):
     time_slot: Optional[str] = None
     notes: Optional[str] = None
 
+
+class TripUpdateSchema(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    cover_url: Optional[str] = None
+    is_public: Optional[bool] = None
+
+
+class StopUpdateSchema(BaseModel):
+    city_id: Optional[int] = None
+    order_index: Optional[int] = None
+    arrival_date: Optional[date] = None
+    departure_date: Optional[date] = None
+    notes: Optional[str] = None
+
+
+class ReorderStopsSchema(BaseModel):
+    stop_ids: list[int]
+
+

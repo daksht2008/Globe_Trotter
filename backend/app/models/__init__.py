@@ -34,7 +34,7 @@ class Trip(db.Model):
     is_public = db.Column(db.Boolean, default=False)
     share_token = db.Column(db.String(64), unique=True, nullable=True)
     cover_url = db.Column(db.String(500), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     stops = db.relationship('Stop', backref='trip', lazy='joined', order_by="Stop.order_index", cascade="all, delete-orphan")
 
@@ -69,6 +69,8 @@ class City(db.Model):
     image_url = db.Column(db.String(500), nullable=True)
     lat = db.Column(db.Float, nullable=True)
     lng = db.Column(db.Float, nullable=True)
+
+    activities = db.relationship('Activity', backref='city', lazy=True)
 
     def to_dict(self):
         return {

@@ -141,3 +141,91 @@ def test_trips_stops_cascade_and_isolation(client):
     assert Trip.query.count() == 0
     assert Stop.query.count() == 0
     assert StopActivity.query.count() == 0
+
+
+def test_budget_share_cities_and_reorder(client):
+    # 1. Health check
+    res_health = client.get('/api/health')
+    assert res_health.status_code == 200
+    assert res_health.get_json()["status"] == "healthy"
+
+    # 2. Cities search and detail
+    res_cities = client.get('/api/cities?q=Tokyo')
+    assert res_cities.status_code == 200
+    cities = res_cities.get_json()
+    assert len(cities) >= 1
+    tokyo_id = cities[0]["id"]
+
+    res_city = client.get(f'/api/cities/{tokyo_id}')
+    assert res_city.status_code == 200
+    city_data = res_city.get_json()
+    assert city_data["name"] == "Tokyo"
+    assert "activities" in city_data
+    assert len(city_data["activities"]) >= 1
+
+    # 3. Auth
+    res_auth = client.post('/api/auth/signup', json={
+        "email": "traveler@example.com",
+        "password": "mypassword123",
+        "name": "Traveler One"
+    })
+    token = res_auth.get_json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 4. Create Trip with Dates
+    res_trip = client.post('/api/trips', headers=headers, json={
+        "name": "Japan Grand Tour",
+        "description": "Tokyo exploration",
+        "start_date": "2026-11-01",
+        "end_date": "2026-11-10"
+    })
+    assert res_trip.status_code == 201
+    trip_data = res_trip.get_json()
+    assert trip_data["start_date"] == "2026-11-01"
+    assert trip_data["end_date"] == "2026-11-10"
+    trip_id = trip_data["id"]
+
+    # 5. Add Stop and Activity
+    res_stop1 = client.post(f'/api/trips/{trip_id}/stops', headers=headers, json={"city_id": tokyo_id})
+    stop1_id = res_stop1.get_json()["id"]
+
+    res_act = client.post(f'/api/stops/{stop1_id}/activities', headers=headers, json={
+        "activity_id": 1,
+        "day_number": 1,
+        "time_slot": "morning"
+    })
+    assert res_act.status_code == 201
+
+    # 6. Budget Endpoint
+    res_budget = client.get(f'/api/trips/{trip_id}/budget', headers=headers)
+    assert res_budget.status_code == 200
+    bdata = res_budget.get_json()
+    assert "total_cost" in bdata
+    assert "by_stop" in bdata
+    assert "by_category" in bdata
+    assert bdata["num_days"] == 10
+
+    # 7. Share Flow
+    res_share = client.post(f'/api/trips/{trip_id}/share', headers=headers)
+    assert res_share.status_code == 200
+    share_token = res_share.get_json()["share_token"]
+    assert share_token is not None
+
+    # Public access without auth
+    res_pub = client.get(f'/api/share/{share_token}')
+    assert res_pub.status_code == 200
+    pub_data = res_pub.get_json()
+    assert pub_data["name"] == "Japan Grand Tour"
+    assert len(pub_data["stops"]) == 1
+
+    # 8. Reorder stops
+    res_stop2 = client.post(f'/api/trips/{trip_id}/stops', headers=headers, json={"city_id": tokyo_id})
+    stop2_id = res_stop2.get_json()["id"]
+    res_reorder = client.put(f'/api/trips/{trip_id}/stops/reorder', headers=headers, json={
+        "stop_ids": [stop2_id, stop1_id]
+    })
+    assert res_reorder.status_code == 200
+    ordered = res_reorder.get_json()
+    assert ordered[0]["id"] == stop2_id
+    assert ordered[1]["id"] == stop1_id
+

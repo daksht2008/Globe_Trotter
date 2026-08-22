@@ -1,3 +1,4 @@
+from datetime import date
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from pydantic import ValidationError
@@ -6,6 +7,18 @@ from app.services.search import fetch_unsplash_photo
 from app.services.budget import calculate_trip_budget
 
 trips_bp = Blueprint('trips', __name__, url_prefix='/api/trips')
+
+
+def _parse_date(val):
+    if not val:
+        return None
+    if isinstance(val, date):
+        return val
+    try:
+        return date.fromisoformat(str(val)[:10])
+    except Exception:
+        return None
+
 
 @trips_bp.route('', methods=['GET'])
 @jwt_required()
@@ -43,10 +56,17 @@ def create_trip():
     if not cover:
         cover = fetch_unsplash_photo(payload.name)
 
+    start_date = _parse_date(payload.start_date)
+    end_date = _parse_date(payload.end_date)
+    if start_date and end_date and end_date < start_date:
+        return jsonify({"error": "end_date must be on or after start_date"}), 400
+
     new_trip = Trip(
         user_id=int(current_user_id),
         name=payload.name,
         description=payload.description,
+        start_date=start_date,
+        end_date=end_date,
         cover_url=cover
     )
     
@@ -92,10 +112,17 @@ def update_trip(trip_id):
         trip.name = data['name']
     if 'description' in data:
         trip.description = data['description']
+    if 'start_date' in data:
+        trip.start_date = _parse_date(data['start_date'])
+    if 'end_date' in data:
+        trip.end_date = _parse_date(data['end_date'])
     if 'cover_url' in data:
         trip.cover_url = data['cover_url']
     if 'is_public' in data:
         trip.is_public = data['is_public']
+
+    if trip.start_date and trip.end_date and trip.end_date < trip.start_date:
+        return jsonify({"error": "end_date must be on or after start_date"}), 400
 
     db.session.commit()
     return jsonify(trip.to_dict()), 200

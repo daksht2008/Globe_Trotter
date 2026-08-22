@@ -1,8 +1,21 @@
+from datetime import date
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import db, Trip, Stop, City
 
 stops_bp = Blueprint('stops', __name__)
+
+
+def _parse_date(val):
+    if not val:
+        return None
+    if isinstance(val, date):
+        return val
+    try:
+        return date.fromisoformat(str(val)[:10])
+    except Exception:
+        return None
+
 
 @stops_bp.route('/api/trips/<int:trip_id>/stops', methods=['GET'])
 @jwt_required()
@@ -27,15 +40,20 @@ def add_trip_stop(trip_id):
     if not city_id:
         return jsonify({"error": "city_id is required"}), 400
 
-    city = City.query.get(city_id)
+    city = db.session.get(City, int(city_id))
     if not city:
         return jsonify({"error": "City not found"}), 404
 
-    order_index = data.get('order_index', len(trip.stops))
+    order_index = data.get('order_index')
+    if order_index is None:
+        order_index = len(trip.stops)
+
     stop = Stop(
         trip_id=trip.id,
         city_id=city.id,
-        order_index=order_index,
+        order_index=int(order_index),
+        arrival_date=_parse_date(data.get('arrival_date')),
+        departure_date=_parse_date(data.get('departure_date')),
         notes=data.get('notes')
     )
     db.session.add(stop)
@@ -47,13 +65,22 @@ def add_trip_stop(trip_id):
 @jwt_required()
 def update_stop(stop_id):
     current_user_id = get_jwt_identity()
-    stop = Stop.query.get(stop_id)
+    stop = db.session.get(Stop, stop_id)
     if not stop or stop.trip.user_id != int(current_user_id):
         return jsonify({"error": "Stop not found or unauthorized"}), 404
 
     data = request.get_json() or {}
+    if 'city_id' in data:
+        new_city = db.session.get(City, int(data['city_id']))
+        if not new_city:
+            return jsonify({"error": "City not found"}), 404
+        stop.city_id = new_city.id
     if 'order_index' in data:
-        stop.order_index = data['order_index']
+        stop.order_index = int(data['order_index'])
+    if 'arrival_date' in data:
+        stop.arrival_date = _parse_date(data['arrival_date'])
+    if 'departure_date' in data:
+        stop.departure_date = _parse_date(data['departure_date'])
     if 'notes' in data:
         stop.notes = data['notes']
 
@@ -65,11 +92,19 @@ def update_stop(stop_id):
 @jwt_required()
 def delete_stop(stop_id):
     current_user_id = get_jwt_identity()
-    stop = Stop.query.get(stop_id)
+    stop = db.session.get(Stop, stop_id)
     if not stop or stop.trip.user_id != int(current_user_id):
         return jsonify({"error": "Stop not found or unauthorized"}), 404
 
+    trip_id = stop.trip_id
     db.session.delete(stop)
+    db.session.flush()
+
+    # Reindex remaining stops
+    remaining = Stop.query.filter_by(trip_id=trip_id).order_by(Stop.order_index).all()
+    for idx, s in enumerate(remaining):
+        s.order_index = idx
+
     db.session.commit()
     return jsonify({"message": "Stop deleted successfully"}), 200
 

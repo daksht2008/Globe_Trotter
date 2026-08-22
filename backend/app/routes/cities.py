@@ -66,10 +66,12 @@ def get_city_detail(city_id):
     GET /api/cities/:id
     Returns single city details along with its activities.
     """
-    from app.models import City
-    city = City.query.get_or_404(city_id)
+    from app.models import db, City
+    city = db.session.get(City, city_id)
+    if not city:
+        return jsonify({"error": "City not found"}), 404
     
-    activities = [a.to_dict() for a in city.activities] if hasattr(city, 'activities') else []
+    activities = [a.to_dict() for a in city.activities] if city.activities else []
     data = city.to_dict()
     data['activities'] = activities
 

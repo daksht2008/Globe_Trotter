@@ -63,8 +63,8 @@ def me():
     Returns current authenticated user details.
     """
     current_user_id = get_jwt_identity()
-    from app.models import User
-    user = User.query.get(int(current_user_id))
+    from app.models import db, User
+    user = db.session.get(User, int(current_user_id))
     
     if not user:
         return jsonify({"error": "User not found"}), 404
