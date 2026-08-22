@@ -52,9 +52,13 @@ export function useCurrency() {
   };
 }
 
+// Restore persisted user name/email from localStorage (survives logout→login)
+const savedName = localStorage.getItem('globetrotter_user_name');
+const savedEmail = localStorage.getItem('globetrotter_user_email');
+
 const defaultUser: UserProfile = {
-  name: 'Alex Rivera',
-  email: 'alex@globetrotter.app',
+  name: savedName || 'Alex Rivera',
+  email: savedEmail || 'alex@globetrotter.app',
   avatarColor: '#0ea5e9',
   bio: 'Chasing sunsets and street food, one city at a time.',
   homeBase: 'San Francisco, CA',
@@ -69,7 +73,10 @@ const defaultUser: UserProfile = {
 };
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  // Only start authenticated if a saved token exists (persists across refreshes)
+  const [isAuthenticated, setIsAuthenticated] = useState(() =>
+    Boolean(localStorage.getItem('globetrotter_token'))
+  );
   const [currentScreen, setCurrentScreen] = useState<ScreenId>('dashboard');
   const [activeTripId, setActiveTripId] = useState<string | null>(seedTrips[0]?.id ?? null);
   const [user, setUser] = useState<UserProfile>(defaultUser);
@@ -91,12 +98,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = useCallback((email: string, name: string) => {
+    // Also persist to localStorage so name survives future page reloads
+    if (name && name !== 'Traveler') localStorage.setItem('globetrotter_user_name', name);
+    if (email) localStorage.setItem('globetrotter_user_email', email);
     setUser((u) => ({ ...u, email, name: name || u.name }));
     setIsAuthenticated(true);
     setCurrentScreen('dashboard');
   }, []);
 
   const signOut = useCallback(() => {
+    localStorage.removeItem('globetrotter_token');
     setIsAuthenticated(false);
   }, []);
 

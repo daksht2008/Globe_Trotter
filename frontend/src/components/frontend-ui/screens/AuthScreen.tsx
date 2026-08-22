@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../AppContext';
-import { Plane, Lock, Mail, User as UserIcon, Sparkles } from 'lucide-react';
+import { Plane, Lock, Mail, User as UserIcon, Sparkles, AlertCircle } from 'lucide-react';
 
 export function AuthScreen() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -8,6 +8,7 @@ export function AuthScreen() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const { signIn, showToast } = useApp();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -16,12 +17,17 @@ export function AuthScreen() {
       showToast('Please fill in all required fields');
       return;
     }
+    if (password.length < 6) {
+      showToast('Password must be at least 6 characters');
+      return;
+    }
 
     setLoading(true);
+    setError('');
     try {
       const endpoint = isSignUp ? '/api/auth/signup' : '/api/auth/login';
       const body = isSignUp ? { email, password, name } : { email, password };
-      
+
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -30,23 +36,32 @@ export function AuthScreen() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Authentication failed');
+        // Show real error (wrong password, duplicate email, etc.) — do NOT sign in
+        const msg = data.error || data.message || (res.status === 401 ? 'Incorrect email or password' : 'Authentication failed');
+        setError(msg);
+        return;
       }
 
       if (data.token) {
         localStorage.setItem('globetrotter_token', data.token);
       }
 
-      signIn(data.user?.email || email, data.user?.name || name || 'Traveler');
-      showToast(isSignUp ? 'Account created! Welcome to GlobeTrotter.' : 'Welcome back!');
+      // Persist name + email so it survives page reload / re-login
+      const resolvedName = data.user?.name || name || 'Traveler';
+      const resolvedEmail = data.user?.email || email;
+      localStorage.setItem('globetrotter_user_name', resolvedName);
+      localStorage.setItem('globetrotter_user_email', resolvedEmail);
+
+      signIn(resolvedEmail, resolvedName);
+      showToast(isSignUp ? '🎉 Account created! Welcome to GlobeTrotter.' : `Welcome back, ${resolvedName}!`);
     } catch (err: any) {
-      // Fallback for offline demo
-      signIn(email, name || 'Traveler');
-      showToast('Signed in successfully');
+      // Only network errors land here (offline) — still show a message, do NOT sign in silently
+      setError('Could not connect to server. Check your internet connection.');
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-sky-950 to-slate-900 p-4">
@@ -127,6 +142,14 @@ export function AuthScreen() {
               />
             </div>
           </div>
+
+          {/* Error banner — shown when API returns 401, 409, etc. */}
+          {error && (
+            <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
+              {error}
+            </div>
+          )}
 
           <button
             type="submit"

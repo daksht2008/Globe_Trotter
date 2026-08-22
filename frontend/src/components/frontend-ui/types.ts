@@ -9,6 +9,7 @@ export type ScreenId =
   | 'discover-activities'
   | 'budget'
   | 'calendar'
+  | 'map'
   | 'public-view'
   | 'profile';
 

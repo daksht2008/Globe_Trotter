@@ -7,6 +7,7 @@ import { ItineraryScreen } from '@/components/frontend-ui/screens/ItineraryScree
 import { CitySearchScreen, ActivityExplorerScreen } from '@/components/frontend-ui/screens/DiscoveryScreens';
 import { BudgetScreen, CalendarScreen } from '@/components/frontend-ui/screens/BudgetCalendarScreens';
 import { PublicItineraryScreen, ProfileScreen } from '@/components/frontend-ui/screens/ProfilePublicScreens';
+import { MapScreen } from '@/components/frontend-ui/screens/MapScreen';
 
 function Toast() {
   const { toast } = useApp();
@@ -41,6 +42,7 @@ function AppContent() {
     'discover-activities': <ActivityExplorerScreen />,
     budget: <BudgetScreen />,
     calendar: <CalendarScreen />,
+    map: <MapScreen />,
     'public-view': <PublicItineraryScreen />,
     profile: <ProfileScreen />,
   };
