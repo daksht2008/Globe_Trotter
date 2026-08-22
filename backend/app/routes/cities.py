@@ -80,3 +80,34 @@ def get_city_detail(city_id):
     data['country_info'] = country_meta
 
     return jsonify(data), 200
+
+
+@cities_bp.route('/<int:city_id>/activities', methods=['POST'])
+def create_city_activity(city_id):
+    """
+    POST /api/cities/:id/activities
+    Creates a custom activity scoped to a specific city.
+    Matches frontend api.ts: activitiesApi.createCustomActivity(cityId, data)
+    """
+    from app.models import db, City, Activity
+    city = db.session.get(City, city_id)
+    if not city:
+        return jsonify({"error": "City not found"}), 404
+
+    data = request.get_json() or {}
+    name = data.get('name')
+    if not name:
+        return jsonify({"error": "name is required"}), 400
+
+    activity = Activity(
+        name=name,
+        category=data.get('category', 'Sightseeing'),
+        cost_estimate=float(data.get('cost_estimate', data.get('estimated_cost', 0.0)) or 0.0),
+        duration_hours=float(data.get('duration_hours', 1.0) or 1.0),
+        city_id=city.id,
+        description=data.get('description'),
+        image_url=data.get('image_url')
+    )
+    db.session.add(activity)
+    db.session.commit()
+    return jsonify(activity.to_dict()), 201
