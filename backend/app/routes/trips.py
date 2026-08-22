@@ -56,6 +56,70 @@ def create_trip():
     return jsonify(new_trip.to_dict()), 201
 
 
+@trips_bp.route('/<int:trip_id>', methods=['GET'])
+@jwt_required()
+def get_trip_detail(trip_id):
+    """
+    GET /api/trips/:id
+    Returns full nested trip itinerary with stops and activities.
+    """
+    current_user_id = get_jwt_identity()
+    from app.models import Trip
+    
+    trip = Trip.query.filter_by(id=trip_id, user_id=int(current_user_id)).first()
+    if not trip:
+        return jsonify({"error": "Trip not found"}), 404
+
+    return jsonify(trip.to_nested_dict()), 200
+
+
+@trips_bp.route('/<int:trip_id>', methods=['PUT'])
+@jwt_required()
+def update_trip(trip_id):
+    """
+    PUT /api/trips/:id
+    Updates trip name, description, dates, or cover.
+    """
+    current_user_id = get_jwt_identity()
+    from app.models import db, Trip
+    
+    trip = Trip.query.filter_by(id=trip_id, user_id=int(current_user_id)).first()
+    if not trip:
+        return jsonify({"error": "Trip not found"}), 404
+
+    data = request.get_json() or {}
+    if 'name' in data:
+        trip.name = data['name']
+    if 'description' in data:
+        trip.description = data['description']
+    if 'cover_url' in data:
+        trip.cover_url = data['cover_url']
+    if 'is_public' in data:
+        trip.is_public = data['is_public']
+
+    db.session.commit()
+    return jsonify(trip.to_dict()), 200
+
+
+@trips_bp.route('/<int:trip_id>', methods=['DELETE'])
+@jwt_required()
+def delete_trip(trip_id):
+    """
+    DELETE /api/trips/:id
+    Deletes trip and cascades to stops and activities.
+    """
+    current_user_id = get_jwt_identity()
+    from app.models import db, Trip
+    
+    trip = Trip.query.filter_by(id=trip_id, user_id=int(current_user_id)).first()
+    if not trip:
+        return jsonify({"error": "Trip not found"}), 404
+
+    db.session.delete(trip)
+    db.session.commit()
+    return jsonify({"message": "Trip deleted successfully"}), 200
+
+
 @trips_bp.route('/<int:trip_id>/budget', methods=['GET'])
 @jwt_required()
 def get_trip_budget(trip_id):
@@ -72,3 +136,4 @@ def get_trip_budget(trip_id):
 
     budget_data = calculate_trip_budget(trip)
     return jsonify(budget_data), 200
+
