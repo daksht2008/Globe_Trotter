@@ -1,6 +1,7 @@
 # Reference documentation (local-only)
 pre-requisites_repo/
 PreRequisites-main/
+PHASE_INFO.md
 
 # Python
 __pycache__/

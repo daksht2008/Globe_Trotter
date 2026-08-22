@@ -1,18 +1,20 @@
 # 🌍 GlobeTrotter — Smart Multi-City Travel Planner
 
 > **Odoo x LDCE Hackathon**  
-> A full-stack travel planning application for creating multi-city itineraries, discovering destinations and activities, optimizing budgets, and sharing travel plans.
+> A full-stack travel planning application for creating multi-city itineraries, discovering destinations and activities, optimizing budgets, viewing interactive maps, and sharing travel plans.
 
 ---
 
 ## 🚀 Features
 
-- **Multi-City Itinerary Builder**: Plan multi-stop trips with dates, custom notes, and drag-and-drop stop reordering.
-- **Activity & City Discovery**: Browse 20+ world destinations and curated activities across sightseeing, culture, adventure, food, and shopping.
-- **Budget Tracking & Visuals**: Real-time cost estimates, category breakdowns, and stop-by-stop spending summaries.
-- **Timeline & Calendar View**: Interactive visual schedule of your journey.
-- **Public Trip Sharing**: Generate unique shareable links to share view-only itineraries with friends or public.
-- **Secure Authentication**: JWT-based authentication with encrypted password hashing.
+- **🗺️ Interactive Interactive Map & Global Visualization**: Embedded Leaflet map rendering cities, visited destinations, and customized trip routes.
+- **✈️ Multi-City Itinerary Builder**: Plan multi-stop journeys with dates, custom notes, stop reordering, and day-by-day scheduling.
+- **🔍 Destination & Activity Discovery**: Browse world destinations and curated activities across sightseeing, culture, adventure, food, and shopping. Enriched with live GeoDB, REST Countries, and Unsplash integration with offline database fallbacks.
+- **💰 Budget Tracking & Analytics**: Real-time cost estimates, category breakdowns, stop-by-stop spending summaries, and per-day expense tracking.
+- **📅 Timeline & Calendar Schedule**: Interactive day-by-day schedule with activity slots (Morning, Afternoon, Evening).
+- **🔗 Public Trip Sharing**: Generate unique shareable links with cryptographic tokens to share view-only itineraries with friends and the public.
+- **🔐 Secure Authentication**: JWT-based authentication with bcrypt password hashing and user profile management.
+- **🧪 Comprehensive Test Coverage**: Full automated test suites across auth, trips CRUD, stops, activities, search fallbacks, and sharing logic.
 
 ---
 
@@ -20,14 +22,14 @@
 
 | Layer | Technology | Details | Port |
 |---|---|---|---|
-| **Backend** | Python 3.14 + Flask 3.x | App factory pattern, Blueprint routing | `5000` |
-| **Database** | SQLite 3 + SQLAlchemy | Normalized relational schema with cascade deletes | Embedded |
-| **Authentication** | Flask-JWT-Extended | Secure token-based auth | — |
-| **Validation** | Pydantic v2 | Strict schema validation | — |
-| **Frontend** | React 18/19 + Vite | Fast modern SPA with vanilla CSS tokens | `5173` |
-| **State Management** | Zustand | Lightweight global client state | — |
-| **Icons & Visuals** | Lucide React + Recharts | Modern UI icons & interactive budget charts | — |
-| **Containers** | Docker & Docker Compose | Multi-container reproducible environment | — |
+| **Backend** | Python 3.10+ / Flask 3.x | Application factory pattern, Blueprint modular routing | `5000` |
+| **Database** | SQLite 3 + SQLAlchemy 3.x | Normalized relational schema with cascade deletes & foreign keys | Embedded |
+| **Authentication** | Flask-JWT-Extended | Secure stateless token-based authorization | — |
+| **Validation** | Pydantic v2 | Strict request payload schema validation | — |
+| **Frontend** | React 18 + Vite + TypeScript | Modern SPA with React hooks & context architecture | `5173` |
+| **Styling & UI** | Tailwind CSS + Lucide Icons | Responsive modern design with accessible UI components | — |
+| **Mapping** | Leaflet + React-Leaflet | Interactive global mapping and marker positioning | — |
+| **Containers** | Docker & Docker Compose | Multi-container reproducible runtime environment | — |
 
 ---
 
@@ -45,12 +47,12 @@
                                     └─────────┘          └──────────┘
 ```
 
-- **`users`**: User credentials (`email`, `password_hash`, `name`)
-- **`trips`**: User trips (`name`, `description`, `start_date`, `end_date`, `is_public`, `share_token`, `cover_url`)
-- **`cities`**: Reference destinations (`name`, `country`, `region`, `cost_index`, `popularity`, `lat`, `lng`, `image_url`)
-- **`stops`**: Ordered trip destinations (`trip_id`, `city_id`, `order_index`, `arrival_date`, `departure_date`, `notes`)
-- **`activities`**: Reference activities (`name`, `category`, `cost_estimate`, `duration_hours`, `city_id`, `description`, `image_url`)
-- **`stop_activities`**: Join table linking activities to stops (`stop_id`, `activity_id`, `day_number`, `time_slot`, `notes`)
+- **`users`**: User credentials (`id`, `email`, `password_hash`, `name`, `created_at`)
+- **`trips`**: User trips (`id`, `user_id`, `name`, `description`, `start_date`, `end_date`, `is_public`, `share_token`, `cover_url`, `created_at`)
+- **`cities`**: Reference destinations (`id`, `name`, `country`, `region`, `cost_index`, `popularity`, `lat`, `lng`, `image_url`)
+- **`stops`**: Ordered trip destinations (`id`, `trip_id`, `city_id`, `order_index`, `arrival_date`, `departure_date`, `notes`)
+- **`activities`**: Reference activities (`id`, `city_id`, `name`, `category`, `cost_estimate`, `duration_hours`, `description`, `image_url`)
+- **`stop_activities`**: Join table linking activities to stops (`id`, `stop_id`, `activity_id`, `day_number`, `time_slot`, `notes`)
 
 ---
 
@@ -58,15 +60,15 @@
 
 ### Option 1: Docker Compose (Recommended)
 
-Start all services with a single command:
+Start all backend, frontend, and database services with one command:
 
 ```bash
 docker compose up --build
 ```
 
-- **Frontend**: [http://localhost:5173](http://localhost:5173)
+- **Frontend Application**: [http://localhost:5173](http://localhost:5173)
 - **Backend API**: [http://localhost:5000](http://localhost:5000)
-- **Health Check**: [http://localhost:5000/api/health](http://localhost:5000/api/health)
+- **API Health Check**: [http://localhost:5000/api/health](http://localhost:5000/api/health)
 
 ---
 
@@ -76,13 +78,19 @@ docker compose up --build
 ```bash
 cd backend
 python -m venv venv
+
 # On Windows:
 .\venv\Scripts\activate
 # On Linux/macOS:
 source venv/bin/activate
 
 pip install -r requirements.txt
-python run.py seed   # Initializes database & seeds reference data
+
+# Seed the database with reference cities & activities
+python run.py seed
+
+# Start the Flask API server
+python run.py
 ```
 
 #### 2. Frontend Setup
@@ -94,49 +102,75 @@ npm run dev
 
 ---
 
-## 🔌 API Endpoints Summary
+## 🔌 API Endpoints Reference
 
-| Method | Endpoint | Description | Auth Required |
+### 🔐 Authentication
+| Method | Endpoint | Description | Auth |
 |---|---|---|---|
-| `GET` | `/api/health` | System health check | ❌ |
-| `POST` | `/api/auth/signup` | Register new user | ❌ |
-| `POST` | `/api/auth/login` | Log in and receive JWT token | ❌ |
-| `GET` | `/api/auth/me` | Current authenticated user profile | ✅ |
-| `GET` | `/api/trips` | Get list of user trips | ✅ |
+| `POST` | `/api/auth/signup` | Register a new user | ❌ |
+| `POST` | `/api/auth/login` | Authenticate & obtain JWT | ❌ |
+| `GET` | `/api/auth/me` | Fetch authenticated user profile | ✅ |
+
+### ✈️ Trips Management
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `GET` | `/api/trips` | List all trips for current user | ✅ |
 | `POST` | `/api/trips` | Create a new trip | ✅ |
-| `GET` | `/api/trips/:id` | Full nested trip itinerary | ✅ |
-| `PUT` | `/api/trips/:id` | Update trip details | ✅ |
-| `DELETE`| `/api/trips/:id` | Delete trip and all related stops | ✅ |
-| `POST` | `/api/trips/:id/stops` | Add a city stop to trip | ✅ |
-| `PUT` | `/api/trips/:id/stops/reorder` | Reorder stops within trip | ✅ |
-| `DELETE`| `/api/stops/:id` | Delete stop and assigned activities | ✅ |
-| `GET` | `/api/cities` | Search and filter destinations | ❌ |
-| `GET` | `/api/activities` | Search and filter activities | ❌ |
-| `POST` | `/api/stops/:id/activities` | Assign activity to stop | ✅ |
-| `DELETE`| `/api/stops/:stopId/activities/:actId` | Remove activity from stop | ✅ |
-| `GET` | `/api/trips/:id/budget` | Trip budget calculations | ✅ |
-| `POST` | `/api/trips/:id/share` | Generate public share token | ✅ |
-| `GET` | `/api/share/:token` | Public view of shared itinerary | ❌ |
+| `GET` | `/api/trips/:id` | Fetch detailed trip with nested stops & activities | ✅ |
+| `PUT` | `/api/trips/:id` | Update trip metadata | ✅ |
+| `DELETE`| `/api/trips/:id` | Delete trip and cascade delete stops | ✅ |
+| `GET` | `/api/trips/:id/budget`| Get calculated budget breakdown for trip | ✅ |
+| `POST` | `/api/trips/:id/share` | Generate or toggle public shareable token | ✅ |
 
----
-
-## 👥 Team & Development Roles
-
-| Role | Member | Responsibilities | Branch |
+### 📍 Stops & Itinerary
+| Method | Endpoint | Description | Auth |
 |---|---|---|---|
-| **Team Lead & DB** | Daksh | Database schema, models, seeding, Docker compose, health & debug | `main` |
-| **Backend Dev 1** | Team Member | Auth routes, Trips CRUD, Cities search, Budget calculation | `backend-1/<feature>` |
-| **Backend Dev 2** | Team Member | Stops CRUD, Activities management, Shared view API | `backend-2/<feature>` |
-| **Frontend Dev** | Team Member | React UI, Zustand state, Itinerary builder, Charts & Calendar | `frontend/<feature>` |
+| `POST` | `/api/trips/:id/stops` | Add a city stop to trip | ✅ |
+| `PUT` | `/api/trips/:id/stops/reorder` | Reorder stops array within trip | ✅ |
+| `DELETE`| `/api/stops/:id` | Remove stop from trip | ✅ |
+
+### 🎯 Activities & Discovery
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `GET` | `/api/cities` | Search/filter cities (with live API fallback) | ❌ |
+| `GET` | `/api/activities` | Search/filter activities by city & category | ❌ |
+| `POST` | `/api/stops/:id/activities` | Assign activity to a stop with day/time slot | ✅ |
+| `DELETE`| `/api/stops/:stopId/activities/:actId` | Remove activity from stop | ✅ |
+
+### 🌐 Public Sharing
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `GET` | `/api/share/:token` | View public shared itinerary (view-only) | ❌ |
+| `GET` | `/api/health` | Service health status | ❌ |
 
 ---
 
-## 🚦 Roadmap
+## 🧪 Testing
 
-- [x] **Phase 1 — Foundation**: DB models, App factory, Idempotent Seeder, Health Check, Docker Compose, Git scaffold.
-- [ ] **Phase 2 — Core Features**: JWT Auth, Trip CRUD, Stop & Activity assignment, Itinerary builder UI.
-- [ ] **Phase 3 — Advanced Features**: City & Activity search filters, Budget charts, Timeline calendar, Shareable links.
-- [ ] **Phase 4 — Polish & Deploy**: End-to-end stress testing, error handling, mobile responsiveness, final builds.
+The backend includes a comprehensive test suite using `pytest`:
+
+```bash
+cd backend
+pytest -v
+```
+
+Tests cover:
+- User registration, login, and JWT validation
+- Trips CRUD operations and user isolation
+- Stop creation, reordering, and cascade deletion
+- Stop activity assignments and slot updates
+- Budget calculations and category aggregation
+- Public share token generation and view access
+- External search fallback mechanisms
+
+---
+
+## 🚦 Roadmap & Implementation Status
+
+- [x] **Phase 1 — Foundation**: Database models, App factory pattern, Database Seeder with Faker, Health Check endpoint, Docker Compose.
+- [x] **Phase 2 — Core Features**: JWT Authentication, Trip CRUD, Stop management & reordering, Activity assignment, Full Itinerary builder.
+- [x] **Phase 3 — Advanced Features**: City & Activity discovery with external API integration (GeoDB / REST Countries / Unsplash), Budget tracking & category analytics, Interactive timeline & calendar view, Public trip sharing via tokens.
+- [x] **Phase 4 — Polish & UI/UX**: Interactive Leaflet maps, complete responsive frontend screens, full automated test coverage, and documentation.
 
 ---
 
